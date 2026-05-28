@@ -2,15 +2,17 @@ import { insertDonation, isTransactionExists } from './db.js';
 
 export async function handleWebhookRequest(request, env) {
     try {
-        // 1. אבטחה: אימות כתובת IP של נדרים פלוס
         const clientIP = request.headers.get('CF-Connecting-IP');
         if (clientIP !== '18.194.219.73') {
             throw new Error(`IP לא מורשה: ${clientIP}. ציפינו ל-18.194.219.73`);
         }
 
-        // 2. קריאה חכמה של הנתונים (תומך גם ב-Form וגם ב-JSON)
         let bodyData = {};
         const contentType = request.headers.get('content-type') || '';
+        
+        console.log("=== התקבל וובהוק מנדרים פלוס ===");
+        console.log("Content-Type:", contentType);
+
         if (contentType.includes('application/json')) {
             bodyData = await request.json();
         } else {
@@ -18,38 +20,41 @@ export async function handleWebhookRequest(request, env) {
             bodyData = Object.fromEntries(formData);
         }
         
-        // 3. חילוץ הנתונים החשובים מהעסקה
+        // הלוג החשוב ביותר: ידפיס את כל הנתונים שהתקבלו
+        console.log("נתוני העסקה שהתקבלו:", JSON.stringify(bodyData));
+
         const txId = bodyData.TransactionId;
         const amount = parseFloat(bodyData.Amount);
         const donorName = `${bodyData.FirstName || ''} ${bodyData.LastName || ''}`.trim() || 'תורם אנונימי';
         const comment = bodyData.Comment || '';
-        const solicitorId = parseInt(bodyData.Param1) || null; // ה-ID של המתרים שהעברנו מהפרונטאנד
+        const solicitorId = parseInt(bodyData.Param1) || null;
 
-        // 4. וולידציה בסיסית
         if (!txId || isNaN(amount)) {
-            throw new Error('חסרים שדות חובה (TransactionId או Amount לא תקין)');
+            throw new Error(`חסרים שדות חובה. TransactionId: ${txId}, Amount: ${bodyData.Amount}`);
         }
 
-        // 5. מניעת כפילויות (במקרה שנדרים שולחים שוב את אותו קאלבק)
         const exists = await isTransactionExists(env, txId);
         if (exists) {
+            console.log("עסקה כבר קיימת, מתעלם:", txId);
             return new Response(JSON.stringify({ status: 'success', message: 'העסקה כבר קיימת במערכת' }), { 
                 status: 200, 
                 headers: { 'Content-Type': 'application/json' } 
             });
         }
 
-        // 6. שמירה במסד הנתונים D1
+        // ניסיון שמירה למסד הנתונים
+        console.log("מנסה לשמור למסד הנתונים...");
         await insertDonation(env, txId, solicitorId, donorName, amount, comment);
+        console.log("העסקה נשמרה בהצלחה במסד הנתונים!");
 
-        // 7. תגובת הצלחה לנדרים פלוס
         return new Response(JSON.stringify({ status: 'success', message: 'התרומה נרשמה בהצלחה' }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
         });
 
     } catch (error) {
-        // זריקת השגיאה כדי שה-index.js יתפוס אותה ויחזיר פירוט מדויק
+        console.error("--- שגיאה בטיפול בוובהוק ---");
+        console.error(error.message);
         throw new Error(`שגיאת וובהוק: ${error.message}`);
     }
 }
