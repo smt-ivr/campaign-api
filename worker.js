@@ -2,7 +2,6 @@ import { handleCampaignRequest } from './campaign.js';
 import { handleWebhookRequest } from './webhook.js';
 import { handleRegister, handleLogin, handleDashboard, handleUpdateTarget } from './solicitor.js';
 
-// פונקציית עזר להחזרת תשובות עם CORS למניעת חסימות בדפדפן
 function corsResponse(response) {
     const newHeaders = new Headers(response.headers);
     newHeaders.set('Access-Control-Allow-Origin', '*');
@@ -16,7 +15,6 @@ export default {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        // טיפול בבקשות OPTIONS שהדפדפן שולח לפני POST (Preflight)
         if (request.method === 'OPTIONS') {
             return corsResponse(new Response(null, { status: 204 }));
         }
@@ -24,15 +22,12 @@ export default {
         try {
             let response;
 
-            // נתוני קמפיין כלליים
             if (path === '/campaign/api/data' && request.method === 'GET') {
                 response = await handleCampaignRequest(env);
             }
-            // קבלת וובהוק מנדרים
             else if (path === '/campaign/api/webhook' && request.method === 'POST') {
                 response = await handleWebhookRequest(request, env);
             }
-            // --- ניתובים חדשים לאזור מתרימים ---
             else if (path === '/campaign/api/solicitor/register' && request.method === 'POST') {
                 response = await handleRegister(request, env);
             }
@@ -45,7 +40,6 @@ export default {
             else if (path === '/campaign/api/solicitor/update' && request.method === 'POST') {
                 response = await handleUpdateTarget(request, env);
             }
-            // שגיאת 404 אם הנתיב לא נמצא
             else {
                 response = new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
             }
@@ -53,6 +47,12 @@ export default {
             return corsResponse(response);
 
         } catch (error) {
+            // מערכת המעקב: מדפיסה את השגיאה המדויקת ללוגים של קלאודפלייר!
+            console.error("=== קריסת שרת נתפסה בראוטר הראשי ===");
+            console.error("נתיב שניסה לגשת:", path);
+            console.error("הודעת שגיאה:", error.message);
+            console.error("פירוט (Stack):", error.stack);
+
             return corsResponse(new Response(JSON.stringify({ 
                 status: 'error', 
                 message: 'שגיאת שרת פנימית',
