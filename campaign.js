@@ -13,7 +13,8 @@ export async function handleCampaignRequest(env) {
             status: 'success',
             data: {
                 mosad_id: settings.mosad_id,
-                groupe: settings.groupe_name
+                api_valid: settings.api_valid || '', // << מושך את מפתח ה-API מהשרת
+                groupe: settings.groupe_name || '',  // מושך את הקבוצה מהשרת (והנה הפסיק!)
                 target: target,
                 total_raised: totalRaised,
                 percentage: parseFloat(percentage),
@@ -26,7 +27,7 @@ export async function handleCampaignRequest(env) {
             status: 200,
             headers: { 
                 'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*' // חובה כדי שהאתר יוכל למשוך את הנתונים
+                'Access-Control-Allow-Origin': '*'
             }
         });
 
