@@ -1,5 +1,5 @@
 name = "campaign-api"
-main = "index.js"
+main = "worker.js"
 compatibility_date = "2026-05-29"
 
 [[d1_databases]]
