@@ -1,0 +1,8 @@
+name = "campaign-api"
+main = "index.js"
+compatibility_date = "2026-05-29"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "campaign"
+database_id = "7787f914-ecf9-45bc-8137-97685cece2e5"
