@@ -13,6 +13,7 @@ export async function handleCampaignRequest(env) {
             status: 'success',
             data: {
                 mosad_id: settings.mosad_id,
+                groupe: settings.groupe_name
                 target: target,
                 total_raised: totalRaised,
                 percentage: parseFloat(percentage),
