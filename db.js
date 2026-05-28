@@ -1,5 +1,4 @@
-// --- פונקציות קמפיין ותרומות (קיימות) ---
-
+// שליפת הגדרות
 export async function getCampaignSettings(env) {
     const { results } = await env.DB.prepare("SELECT key, value FROM settings").all();
     let settings = {};
@@ -20,8 +19,9 @@ export async function getSolicitors(env) {
     return results;
 }
 
+// *** כאן נמצא התיקון! הוספנו את bind(txId) ***
 export async function isTransactionExists(env, txId) {
-    const result = await env.DB.prepare("SELECT id FROM donations WHERE nedarim_tx_id = ?").first();
+    const result = await env.DB.prepare("SELECT id FROM donations WHERE nedarim_tx_id = ?").bind(txId).first();
     return result !== null;
 }
 
@@ -32,10 +32,8 @@ export async function insertDonation(env, txId, solicitorId, donorName, amount, 
     `).bind(txId, solicitorId, donorName, amount, comment).run();
 }
 
-// --- פונקציות מתרימים חדשות (אזור אישי) ---
-
+// פונקציות מתרימים
 export async function checkSolicitorExists(env, email, phone) {
-    // בודק אם מייל קיים, או אם טלפון קיים (רק אם הוזן טלפון)
     const query = "SELECT id FROM solicitors WHERE email = ? OR (phone = ? AND phone != '')";
     const result = await env.DB.prepare(query).bind(email, phone || '').first();
     return result !== null;
