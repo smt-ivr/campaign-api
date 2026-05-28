@@ -4,14 +4,11 @@ export async function handleWebhookRequest(request, env) {
     try {
         const clientIP = request.headers.get('CF-Connecting-IP');
         if (clientIP !== '18.194.219.73') {
-            throw new Error(`IP לא מורשה: ${clientIP}. ציפינו ל-18.194.219.73`);
+            throw new Error(`IP לא מורשה: ${clientIP}`);
         }
 
         let bodyData = {};
         const contentType = request.headers.get('content-type') || '';
-        
-        console.log("=== התקבל וובהוק מנדרים פלוס ===");
-        console.log("Content-Type:", contentType);
 
         if (contentType.includes('application/json')) {
             bodyData = await request.json();
@@ -20,17 +17,17 @@ export async function handleWebhookRequest(request, env) {
             bodyData = Object.fromEntries(formData);
         }
         
-        // הלוג החשוב ביותר: ידפיס את כל הנתונים שהתקבלו
         console.log("נתוני העסקה שהתקבלו:", JSON.stringify(bodyData));
 
+        // *** התיקון כאן: קריאת השדות המדויקים שנדרים שולחים ***
         const txId = bodyData.TransactionId;
         const amount = parseFloat(bodyData.Amount);
-        const donorName = `${bodyData.FirstName || ''} ${bodyData.LastName || ''}`.trim() || 'תורם אנונימי';
-        const comment = bodyData.Comment || '';
+        const donorName = bodyData.ClientName || 'תורם אנונימי';
+        const comment = bodyData.Comments || ''; // Comments עם S
         const solicitorId = parseInt(bodyData.Param1) || null;
 
         if (!txId || isNaN(amount)) {
-            throw new Error(`חסרים שדות חובה. TransactionId: ${txId}, Amount: ${bodyData.Amount}`);
+            throw new Error(`חסרים שדות חובה.`);
         }
 
         const exists = await isTransactionExists(env, txId);
@@ -42,7 +39,6 @@ export async function handleWebhookRequest(request, env) {
             });
         }
 
-        // ניסיון שמירה למסד הנתונים
         console.log("מנסה לשמור למסד הנתונים...");
         await insertDonation(env, txId, solicitorId, donorName, amount, comment);
         console.log("העסקה נשמרה בהצלחה במסד הנתונים!");
