@@ -1,13 +1,12 @@
 import { getCampaignSettings, getTotalDonations, getSolicitors } from './db.js';
 
-// *** חדש: פונקציית עזר למשיכת שער יציג רשמי מבנק ישראל ***
+// פונקציית עזר למשיכת שער יציג רשמי מבנק ישראל
 async function getOfficialBoiRate() {
-    let usdRate = 3.75; // גיבוי למקרה שהשרת של בנק ישראל למטה
+    let usdRate = 2.81; // גיבוי למקרה שהשרת של בנק ישראל למטה
     try {
         const res = await fetch('https://boi.org.il/PublicApi/GetExchangeRates');
         if (res.ok) {
             const data = await res.json();
-            // חיפוש הדולר מתוך רשימת המטבעות של בנק ישראל
             const usdData = data.exchangeRates.find(rate => rate.key === 'USD');
             if (usdData && usdData.currentExchangeRate) {
                 usdRate = usdData.currentExchangeRate;
@@ -44,7 +43,7 @@ export async function handleCampaignInfo(env) {
                 total_raised: combinedTotalRaised, // שווי משוקלל בשקלים (למד ההתקדמות הראשי)
                 total_ils: totals.total_ils,       // כמה נתרם נטו בשקלים
                 total_usd: totals.total_usd,       // כמה נתרם נטו בדולרים
-                usd_to_ils_rate: usdRate,          // שער הדולר היציג ששימש לחישוב מול בנק ישראל
+                usd_to_ils_rate: usdRate,          // שער הדולר היציג ששימש לחישוב
                 percentage: parseFloat(percentage),
                 end_date: settings.end_date || ''
             }
@@ -55,10 +54,27 @@ export async function handleCampaignInfo(env) {
     }
 }
 
-// 2. קריאה לקבלת כל המתרימים
+// 2. קריאה לקבלת כל המתרימים (משוקלל כולל דולרים)
 export async function handleSolicitorsList(env) {
     try {
-        const solicitors = await getSolicitors(env);
+        const solicitorsRaw = await getSolicitors(env);
+        
+        // נמשוך את השער היציג כדי להמיר את הדולרים של כל מתרים
+        const usdRate = await getOfficialBoiRate();
+
+        // נשקלל את הסכום הסופי לכל מתרים כדי שהפרונטאנד ימשיך לעבוד רגיל
+        const solicitors = solicitorsRaw.map(sol => {
+            const combinedRaised = sol.raised_ils + (sol.raised_usd * usdRate);
+            return {
+                id: sol.id,
+                name: sol.name,
+                target_amount: sol.target_amount,
+                raised_ils: sol.raised_ils, // שקלים בלבד למקרה שצריך
+                raised_usd: sol.raised_usd, // דולרים בלבד למקרה שצריך
+                raised: Math.round(combinedRaised) // הסכום הסופי המעוגל שיוצג בטבלה באתר
+            };
+        });
+
         return new Response(JSON.stringify({
             status: 'success',
             data: solicitors
@@ -69,12 +85,10 @@ export async function handleSolicitorsList(env) {
     }
 }
 
-// 3. קריאה לקבלת נתוני אימות ותרומה (כולל שער בנק ישראל עדכני)
+// 3. קריאה לקבלת נתוני אימות ותרומה
 export async function handleDonationInfo(env) {
     try {
         const settings = await getCampaignSettings(env);
-        
-        // משיכת השער היציג גם עבור חלון התרומה
         const usdRate = await getOfficialBoiRate();
         
         return new Response(JSON.stringify({
