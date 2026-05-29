@@ -141,6 +141,9 @@ export async function handleDashboard(request, env) {
         const usdRate = await getOfficialBoiRate();
         const combinedTotalRaised = total_ils + (total_usd * usdRate);
 
+        // חישוב האחוז ליעד
+        const percentage = solicitor.target_amount > 0 ? ((combinedTotalRaised / solicitor.target_amount) * 100).toFixed(2) : 0;
+
         return new Response(JSON.stringify({
             status: 'success',
             data: {
@@ -151,6 +154,7 @@ export async function handleDashboard(request, env) {
                 total_ils: total_ils,              // נטו שקלים
                 total_usd: total_usd,              // נטו דולרים
                 usd_to_ils_rate: usdRate,          // שער הדולר ביום השליפה
+                percentage: parseFloat(percentage), // הוספת האחוז
                 donations: donationsList
             }
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
