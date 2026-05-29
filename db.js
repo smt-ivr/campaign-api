@@ -6,7 +6,6 @@ export async function getCampaignSettings(env) {
     return settings;
 }
 
-// *** עודכן: פונקציה מפרידה בין שקלים לדולרים ***
 export async function getTotalDonations(env) {
     const { results } = await env.DB.prepare("SELECT amount, currency FROM donations").all();
     let total_ils = 0;
@@ -22,14 +21,21 @@ export async function getTotalDonations(env) {
             }
         }
     }
-    // מחזירים את שניהם
     return { total_ils, total_usd };
 }
 
+// *** עודכן: חלוקת המטבעות לשקלים ולדולרים ישירות למתרימים ***
 export async function getSolicitors(env) {
     const { results } = await env.DB.prepare(`
-        SELECT s.id, s.name, s.target_amount, COALESCE(SUM(d.amount), 0) as raised
-        FROM solicitors s LEFT JOIN donations d ON s.id = d.solicitor_id GROUP BY s.id
+        SELECT 
+            s.id, 
+            s.name, 
+            s.target_amount, 
+            COALESCE(SUM(CASE WHEN d.currency = '2' OR d.currency = 'USD' THEN d.amount ELSE 0 END), 0) as raised_usd,
+            COALESCE(SUM(CASE WHEN d.currency = '1' OR d.currency = 'ILS' OR d.currency IS NULL THEN d.amount ELSE 0 END), 0) as raised_ils
+        FROM solicitors s 
+        LEFT JOIN donations d ON s.id = d.solicitor_id 
+        GROUP BY s.id
     `).all();
     return results;
 }
