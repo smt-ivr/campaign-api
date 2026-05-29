@@ -39,10 +39,24 @@ export async function handleSolicitorsList(env) {
     }
 }
 
-// 3. קריאה לקבלת נתוני אימות והגדרות תרומה (עבור האייפרם/הסליקה)
+// 3. קריאה לקבלת נתוני אימות והגדרות תרומה (עבור האייפרם/הסליקה) + שער דולר מעודכן
 export async function handleDonationInfo(env) {
     try {
         const settings = await getCampaignSettings(env);
+        
+        // *** עודכן: משיכת שער הדולר בזמן אמת ***
+        let usdRate = 3.70; // ברירת מחדל במידה וה-API החיצוני נופל
+        try {
+            const rateRes = await fetch('https://open.er-api.com/v6/latest/USD');
+            if (rateRes.ok) {
+                const rateData = await rateRes.json();
+                if (rateData && rateData.rates && rateData.rates.ILS) {
+                    usdRate = rateData.rates.ILS;
+                }
+            }
+        } catch (e) {
+            console.error("שגיאה בשליפת שער הדולר, נשתמש בברירת המחדל", e);
+        }
         
         return new Response(JSON.stringify({
             status: 'success',
@@ -50,7 +64,8 @@ export async function handleDonationInfo(env) {
                 mosad_id: settings.mosad_id || '',
                 api_valid: settings.api_valid || '',
                 groupe: settings.groupe_name || '',
-                category: settings.category || '' // אפשרות להוסיף קטגוריה אם מוגדר
+                category: settings.category || '',
+                usd_to_ils_rate: usdRate // שער החליפין חוזר ללקוח
             }
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
