@@ -1,4 +1,4 @@
-import { handleCampaignRequest } from './campaign.js';
+import { handleCampaignInfo, handleSolicitorsList, handleDonationInfo } from './campaign.js';
 import { handleWebhookRequest } from './webhook.js';
 import { handleRegister, handleLogin, handleDashboard, handleUpdateTarget } from './solicitor.js';
 
@@ -22,12 +22,21 @@ export default {
         try {
             let response;
 
-            if (path === '/campaign/api/data' && request.method === 'GET') {
-                response = await handleCampaignRequest(env);
+            // נתיבים חדשים לקמפיין ולתרומות
+            if (path === '/campaign/api/info' && request.method === 'GET') {
+                response = await handleCampaignInfo(env);
             }
+            else if (path === '/campaign/api/solicitors' && request.method === 'GET') {
+                response = await handleSolicitorsList(env);
+            }
+            else if (path === '/campaign/api/donation-info' && request.method === 'GET') {
+                response = await handleDonationInfo(env);
+            }
+            // נתיב וובהוק נשאר כרגיל
             else if (path === '/campaign/api/webhook' && request.method === 'POST') {
                 response = await handleWebhookRequest(request, env);
             }
+            // נתיבי מתרימים
             else if (path === '/campaign/api/solicitor/register' && request.method === 'POST') {
                 response = await handleRegister(request, env);
             }
@@ -47,7 +56,6 @@ export default {
             return corsResponse(response);
 
         } catch (error) {
-            // מערכת המעקב: מדפיסה את השגיאה המדויקת ללוגים של קלאודפלייר!
             console.error("=== קריסת שרת נתפסה בראוטר הראשי ===");
             console.error("נתיב שניסה לגשת:", path);
             console.error("הודעת שגיאה:", error.message);
