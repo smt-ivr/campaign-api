@@ -19,7 +19,6 @@ export async function getSolicitors(env) {
     return results;
 }
 
-// *** כאן נמצא התיקון! הוספנו את bind(txId) ***
 export async function isTransactionExists(env, txId) {
     const result = await env.DB.prepare("SELECT id FROM donations WHERE nedarim_tx_id = ?").bind(txId).first();
     return result !== null;
@@ -32,11 +31,19 @@ export async function insertDonation(env, txId, solicitorId, donorName, amount, 
     `).bind(txId, solicitorId, donorName, amount, comment).run();
 }
 
-// פונקציות מתרימים
+// --- פונקציות מתרימים ---
+
 export async function checkSolicitorExists(env, email, phone) {
     const query = "SELECT id FROM solicitors WHERE email = ? OR (phone = ? AND phone != '')";
     const result = await env.DB.prepare(query).bind(email, phone || '').first();
     return result !== null;
+}
+
+// פונקציה חדשה שנוספה: שליפת מתרים לפי ID, אימייל או טלפון עבור ההתחברות
+export async function getSolicitorByLoginIdentifier(env, identifier) {
+    const query = "SELECT * FROM solicitors WHERE id = ? OR email = ? OR phone = ?";
+    // אנחנו מזינים את אותו המזהה 3 פעמים כדי שהשאילתה תבדוק את 3 העמודות
+    return await env.DB.prepare(query).bind(identifier, identifier, identifier).first();
 }
 
 export async function getSolicitorById(env, id) {
