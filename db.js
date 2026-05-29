@@ -24,11 +24,12 @@ export async function isTransactionExists(env, txId) {
     return result !== null;
 }
 
-export async function insertDonation(env, txId, solicitorId, donorName, amount, comment) {
+// *** עודכן: קבלת סוג מטבע וזמן ישראלי לשמירה ***
+export async function insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, createdAt) {
     await env.DB.prepare(`
-        INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, comment) 
-        VALUES (?, ?, ?, ?, ?)
-    `).bind(txId, solicitorId, donorName, amount, comment).run();
+        INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, currency, comment, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(txId, solicitorId, donorName, amount, currency, comment, createdAt).run();
 }
 
 // --- פונקציות מתרימים ---
@@ -39,10 +40,8 @@ export async function checkSolicitorExists(env, email, phone) {
     return result !== null;
 }
 
-// פונקציה חדשה שנוספה: שליפת מתרים לפי ID, אימייל או טלפון עבור ההתחברות
 export async function getSolicitorByLoginIdentifier(env, identifier) {
     const query = "SELECT * FROM solicitors WHERE id = ? OR email = ? OR phone = ?";
-    // אנחנו מזינים את אותו המזהה 3 פעמים כדי שהשאילתה תבדוק את 3 העמודות
     return await env.DB.prepare(query).bind(identifier, identifier, identifier).first();
 }
 
@@ -59,7 +58,7 @@ export async function createSolicitor(env, id, name, email, phone, password, tar
 
 export async function getSolicitorDonations(env, solicitorId) {
     const { results } = await env.DB.prepare(`
-        SELECT donor_name, amount, comment, created_at 
+        SELECT donor_name, amount, comment, created_at, currency 
         FROM donations WHERE solicitor_id = ? ORDER BY created_at DESC
     `).bind(solicitorId).all();
     return results;
