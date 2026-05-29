@@ -1,13 +1,11 @@
-import { getDb } from './db.js';
-
-// 1. רישום מתרים/שגריר חדש
-export async function handleRegisterSolicitor(request, env) {
+// 1. רישום מתרים חדש (שם פונקציה תואם ל-worker.js)
+export async function handleRegister(request, env) {
     try {
         const body = await request.json();
         const { name, email, phone, password, confirm_password, target_amount } = body;
 
         if (!name || !email || !password) {
-            return new Response(JSON.stringify({ status: 'error', message: 'נא למלא את כל שדות החובה (שם, אימייל וסיסמה)' }), {
+            return new Response(JSON.stringify({ status: 'error', message: 'נא למלא את כל שדות החובה' }), {
                 status: 400, headers: { 'Content-Type': 'application/json' }
             });
         }
@@ -18,10 +16,8 @@ export async function handleRegisterSolicitor(request, env) {
             });
         }
 
-        const db = getDb(env);
-
-        // בדיקה האם האימייל כבר קיים במערכת
-        const existing = await db.prepare("SELECT id FROM solicitors WHERE email = ?").bind(email).first();
+        // בדיקה האם האימייל כבר קיים במערכת בעזרת env.DB
+        const existing = await env.DB.prepare("SELECT id FROM solicitors WHERE email = ?").bind(email).first();
         if (existing) {
             return new Response(JSON.stringify({ status: 'error', message: 'כתובת אימייל זו כבר רשומה במערכת' }), {
                 status: 400, headers: { 'Content-Type': 'application/json' }
@@ -30,8 +26,8 @@ export async function handleRegisterSolicitor(request, env) {
 
         const target = target_amount ? parseFloat(target_amount) : 5000;
 
-        // הכנסת המתרים למסד הנתונים עם הסיסמה בטקסט גלוי (ללא הצפנה)
-        const result = await db.prepare(
+        // הכנסת המתרים למסד הנתונים
+        const result = await env.DB.prepare(
             "INSERT INTO solicitors (name, email, phone, password, target_amount) VALUES (?, ?, ?, ?, ?)"
         ).bind(name, email, phone || null, password, target).run();
 
@@ -50,26 +46,24 @@ export async function handleRegisterSolicitor(request, env) {
     }
 }
 
-// 2. התחברות משתמש (Login)
-export async function handleLoginSolicitor(request, env) {
+// 2. התחברות משתמש (שם פונקציה תואם ל-worker.js)
+export async function handleLogin(request, env) {
     try {
         const body = await request.json();
-        const { identifier, password } = body; // identifier יכול להיות אימייל, טלפון או מזהה מספר
+        const { identifier, password } = body;
 
         if (!identifier || !password) {
             return new Response(JSON.stringify({ status: 'error', message: 'יש להזין פרטי זיהוי וסיסמה' }), {
                 status: 400, headers: { 'Content-Type': 'application/json' }
             });
         }
-
-        const db = getDb(env);
         
-        // חיפוש המתרים לפי מזהה, אימייל או טלפון
-        const solicitor = await db.prepare(
+        // חיפוש המתרים בעזרת env.DB
+        const solicitor = await env.DB.prepare(
             "SELECT * FROM solicitors WHERE id = ? OR email = ? OR phone = ?"
         ).bind(identifier, identifier, identifier).first();
 
-        // השוואת הסיסמה בטקסט גלוי ישיר
+        // השוואת הסיסמה
         if (!solicitor || solicitor.password !== password) {
             return new Response(JSON.stringify({ status: 'error', message: 'פרטי הזיהוי או הסיסמה שגויים' }), {
                 status: 401, headers: { 'Content-Type': 'application/json' }
@@ -92,12 +86,12 @@ export async function handleLoginSolicitor(request, env) {
     }
 }
 
-// 3. שליפת נתוני דאשבורד אישי (מאובטח באמצעות אימות סיסמה)
+// 3. שליפת נתוני דאשבורד אישי 
 export async function handleDashboard(request, env) {
     try {
         const url = new URL(request.url);
         const id = parseInt(url.searchParams.get('id'));
-        const password = url.searchParams.get('p'); // קבלת הסיסמה מהקליינט למניעת סריקות
+        const password = url.searchParams.get('p');
 
         if (!id || isNaN(id) || !password) {
             return new Response(JSON.stringify({ status: 'error', message: 'גישה חסומה. מזהה משתמש או מפתח אימות חסרים' }), {
@@ -105,22 +99,21 @@ export async function handleDashboard(request, env) {
             });
         }
 
-        const db = getDb(env);
-
-        // שליפת המתרים ובדיקת התאמת סיסמה ישירה
-        const solicitor = await db.prepare("SELECT * FROM solicitors WHERE id = ?").bind(id).first();
+        // שליפת המתרים ובדיקת התאמת סיסמה
+        const solicitor = await env.DB.prepare("SELECT * FROM solicitors WHERE id = ?").bind(id).first();
         if (!solicitor || solicitor.password !== password) {
             return new Response(JSON.stringify({ status: 'error', message: 'אימות נכשל. אין הרשאה לצפות בנתונים אלו' }), {
                 status: 403, headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        // שליפת רשימת התרומות שזרמו דרך שותף זה
-        const donations = await db.prepare(
-            "SELECT donor_name, amount, comment, created_at FROM donations WHERE solicitor_id = ? ORDER BY created_at DESC"
+        // שליפת רשימת התרומות
+        const donations = await env.DB.prepare(
+            "SELECT donor_name, amount, comment, created_at, currency FROM donations WHERE solicitor_id = ? ORDER BY created_at DESC"
         ).bind(id).all();
 
         const donationsList = donations.results || [];
+        // סכימת סך כל התרומות ללא תלות במטבע (החלוקה המדויקת מתבצעת בדאשבורד בפרונטאנד)
         const totalRaised = donationsList.reduce((sum, d) => sum + d.amount, 0);
 
         return new Response(JSON.stringify({
@@ -153,18 +146,16 @@ export async function handleUpdateTarget(request, env) {
             });
         }
 
-        const db = getDb(env);
-
-        // וידוא שהמשתמש מורשה לעדכן את היעד (בדיקת סיסמה ישירה)
-        const solicitor = await db.prepare("SELECT password FROM solicitors WHERE id = ?").bind(id).first();
+        // וידוא שהמשתמש מורשה לעדכן את היעד 
+        const solicitor = await env.DB.prepare("SELECT password FROM solicitors WHERE id = ?").bind(id).first();
         if (!solicitor || solicitor.password !== password) {
             return new Response(JSON.stringify({ status: 'error', message: 'אין הרשאה לביצוע פעולה זו' }), {
                 status: 403, headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        // ביצוע העדכון בפועל
-        await db.prepare("UPDATE solicitors SET target_amount = ? WHERE id = ?").bind(parseFloat(new_target), id).run();
+        // ביצוע העדכון
+        await env.DB.prepare("UPDATE solicitors SET target_amount = ? WHERE id = ?").bind(parseFloat(new_target), id).run();
 
         return new Response(JSON.stringify({
             status: 'success',
@@ -174,28 +165,6 @@ export async function handleUpdateTarget(request, env) {
     } catch (err) {
         return new Response(JSON.stringify({ status: 'error', message: 'שגיאה פנימית בעדכון היעד' }), {
             status: 500, headers: { 'Content-Type': 'application/json' }
-        });
-    }
-}
-
-// 5. שליפת רשימת כל המתרימים (עבור תפריט הבחירה באתר התרומות הראשי)
-export async function handleGetSolicitors(request, env) {
-    try {
-        const db = getDb(env);
-        // שליפת השמות והמזהים בלבד (ללא חשיפת סיסמאות או מידע אישי)
-        const solicitors = await db.prepare("SELECT id, name FROM solicitors ORDER BY name ASC").all();
-
-        return new Response(JSON.stringify(solicitors.results || []), {
-            status: 200,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*' // מאפשר גישה מדומיינים שונים לפרונטאנד
-            }
-        });
-    } catch (err) {
-        return new Response(JSON.stringify([]), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
         });
     }
 }
