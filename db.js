@@ -6,9 +6,24 @@ export async function getCampaignSettings(env) {
     return settings;
 }
 
+// *** עודכן: פונקציה מפרידה בין שקלים לדולרים ***
 export async function getTotalDonations(env) {
-    const result = await env.DB.prepare("SELECT SUM(amount) as total FROM donations").first();
-    return result?.total || 0;
+    const { results } = await env.DB.prepare("SELECT amount, currency FROM donations").all();
+    let total_ils = 0;
+    let total_usd = 0;
+    
+    if (results) {
+        for (let row of results) {
+            // קוד 2 של נדרים פלוס = דולר
+            if (row.currency === '2' || row.currency === 'USD') {
+                total_usd += row.amount;
+            } else {
+                total_ils += row.amount;
+            }
+        }
+    }
+    // מחזירים את שניהם
+    return { total_ils, total_usd };
 }
 
 export async function getSolicitors(env) {
@@ -24,7 +39,6 @@ export async function isTransactionExists(env, txId) {
     return result !== null;
 }
 
-// *** עודכן: קבלת סוג מטבע וזמן ישראלי לשמירה ***
 export async function insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, createdAt) {
     await env.DB.prepare(`
         INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, currency, comment, created_at) 
