@@ -55,13 +55,18 @@ export async function handleSolicitorsList(env) {
 
         const solicitors = solicitorsRaw.map(sol => {
             const combinedRaised = sol.raised_ils + (sol.raised_usd * usdRate);
+            
+            // חישוב האחוז למתרים
+            const percentage = sol.target_amount > 0 ? ((combinedRaised / sol.target_amount) * 100).toFixed(2) : 0;
+            
             return {
                 id: sol.id,
                 name: sol.name,
                 target_amount: sol.target_amount,
                 raised_ils: sol.raised_ils, 
                 raised_usd: sol.raised_usd, 
-                raised: combinedRaised // בוטל העיגול! נשמר דיוק מלא
+                raised: combinedRaised, // בוטל העיגול! נשמר דיוק מלא
+                percentage: parseFloat(percentage) // שליחת האחוז ללקוח
             };
         });
 
