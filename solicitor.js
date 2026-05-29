@@ -3,28 +3,52 @@ import {
     createSolicitor, 
     getSolicitorById, 
     getSolicitorDonations, 
-    updateSolicitorTarget 
+    updateSolicitorTarget,
+    getSolicitorByLoginIdentifier
 } from './db.js';
 
-// פונקציית עזר: הגרלת ID בן 5 ספרות שלא קיים במערכת
 async function generateUniqueId(env) {
     let id;
     let exists = true;
     while (exists) {
-        id = Math.floor(10000 + Math.random() * 90000); // מספר בין 10000 ל-99999
+        id = Math.floor(10000 + Math.random() * 90000);
         const check = await getSolicitorById(env, id);
         if (!check) exists = false;
     }
     return id;
 }
 
+// פונקציות עזר לבדיקת תקינות
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidPhone(phone) {
+    return /^[0-9]{9,10}$/.test(phone);
+}
+
 // הרשמת מתרים חדש
 export async function handleRegister(request, env) {
     const data = await request.json();
-    const { name, email, phone, password, target_amount } = data;
+    const { name, email, phone, password, confirm_password, target_amount } = data;
 
-    if (!name || !email || !password || target_amount === undefined) {
-        throw new Error('חסרים שדות חובה להרשמה');
+    // בדיקת שדות חובה
+    if (!name || !email || !password || !confirm_password || target_amount === undefined) {
+        return new Response(JSON.stringify({ status: 'error', message: 'חסרים שדות חובה להרשמה' }), { status: 400 });
+    }
+
+    // בדיקת סיסמה כפולה
+    if (password !== confirm_password) {
+        return new Response(JSON.stringify({ status: 'error', message: 'הסיסמאות שהוזנו אינן תואמות' }), { status: 400 });
+    }
+
+    // בדיקות תקינות אימייל וטלפון
+    if (!isValidEmail(email)) {
+        return new Response(JSON.stringify({ status: 'error', message: 'כתובת המייל אינה תקינה' }), { status: 400 });
+    }
+    
+    if (phone && !isValidPhone(phone)) {
+        return new Response(JSON.stringify({ status: 'error', message: 'מספר הטלפון אינו תקין (יש להזין 9-10 ספרות)' }), { status: 400 });
     }
 
     const exists = await checkSolicitorExists(env, email, phone);
@@ -41,15 +65,17 @@ export async function handleRegister(request, env) {
 // התחברות
 export async function handleLogin(request, env) {
     const data = await request.json();
-    const { id, password } = data;
+    const { identifier, password } = data; // identifier יכול להיות ID, מייל או טלפון
 
-    if (!id || !password) throw new Error('נא להזין מספר מתרים וסיסמה');
+    if (!identifier || !password) {
+        return new Response(JSON.stringify({ status: 'error', message: 'נא להזין פרטי התחברות וסיסמה' }), { status: 400 });
+    }
 
-    const solicitor = await getSolicitorById(env, parseInt(id));
+    // חיפוש מתרים לפי אחד מהפרטים
+    const solicitor = await getSolicitorByLoginIdentifier(env, identifier);
     
-    // בדיקת סיסמה (בטקסט רגיל כפי שביקשת)
     if (!solicitor || solicitor.password !== password) {
-        return new Response(JSON.stringify({ status: 'error', message: 'מספר מתרים או סיסמה שגויים' }), { status: 401 });
+        return new Response(JSON.stringify({ status: 'error', message: 'פרטי ההתחברות או הסיסמה שגויים' }), { status: 401 });
     }
 
     return new Response(JSON.stringify({ 
@@ -78,7 +104,7 @@ export async function handleDashboard(request, env) {
             name: solicitor.name,
             target: solicitor.target_amount,
             total_raised: totalRaised,
-            donations: donations // רשימת התרומות כדי להציג לו מי תרם
+            donations: donations 
         }
     }), { status: 200 });
 }
