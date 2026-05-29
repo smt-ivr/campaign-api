@@ -1,4 +1,5 @@
 import { insertDonation, isTransactionExists } from './db.js';
+import { getIsraelTime } from './utils.js'; // ייבוא הפונקציה לשעון ישראל
 
 export async function handleWebhookRequest(request, env) {
     try {
@@ -19,12 +20,14 @@ export async function handleWebhookRequest(request, env) {
         
         console.log("נתוני העסקה שהתקבלו:", JSON.stringify(bodyData));
 
-        // *** התיקון כאן: קריאת השדות המדויקים שנדרים שולחים ***
         const txId = bodyData.TransactionId;
         const amount = parseFloat(bodyData.Amount);
         const donorName = bodyData.ClientName || 'תורם אנונימי';
-        const comment = bodyData.Comments || ''; // Comments עם S
+        const comment = bodyData.Comments || ''; 
         const solicitorId = parseInt(bodyData.Param1) || null;
+        
+        // *** עודכן: משיכת מטבע מנדרים פלוס (1=שקל, 2=דולר) ***
+        const currency = bodyData.Currency || '1'; 
 
         if (!txId || isNaN(amount)) {
             throw new Error(`חסרים שדות חובה.`);
@@ -40,7 +43,11 @@ export async function handleWebhookRequest(request, env) {
         }
 
         console.log("מנסה לשמור למסד הנתונים...");
-        await insertDonation(env, txId, solicitorId, donorName, amount, comment);
+        
+        // *** עודכן: יצירת זמן ישראל ושמירה במסד ***
+        const israelTime = getIsraelTime();
+        await insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, israelTime);
+        
         console.log("העסקה נשמרה בהצלחה במסד הנתונים!");
 
         return new Response(JSON.stringify({ status: 'success', message: 'התרומה נרשמה בהצלחה' }), {
