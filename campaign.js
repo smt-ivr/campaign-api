@@ -91,7 +91,7 @@ export async function handleDonationInfo(env) {
                 mosad_id: settings.mosad_id || '',
                 api_valid: settings.api_valid || '',
                 groupe: settings.groupe_name || '',
-                category: settings.category || '',
+                CallBackMailError: settings.CallBackMailError || '',
                 usd_to_ils_rate: usdRate 
             }
         }), { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
