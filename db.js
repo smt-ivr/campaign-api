@@ -24,7 +24,7 @@ export async function getTotalDonations(env) {
     return { total_ils, total_usd };
 }
 
-// *** עודכן: חלוקת המטבעות לשקלים ולדולרים ישירות למתרימים ***
+// חלוקת המטבעות לשקלים ולדולרים ישירות למתרימים
 export async function getSolicitors(env) {
     const { results } = await env.DB.prepare(`
         SELECT 
@@ -86,4 +86,14 @@ export async function getSolicitorDonations(env, solicitorId) {
 
 export async function updateSolicitorTarget(env, id, newTarget) {
     await env.DB.prepare("UPDATE solicitors SET target_amount = ? WHERE id = ?").bind(newTarget, id).run();
+}
+
+// --- פונקציות שגיאות ---
+
+// הוספת שגיאת וובהוק לטבלה החדשה
+export async function insertWebhookError(env, payload, errorMessage, createdAt) {
+    await env.DB.prepare(`
+        INSERT INTO webhook_errors (payload, error_message, created_at) 
+        VALUES (?, ?, ?)
+    `).bind(payload, errorMessage, createdAt).run();
 }
