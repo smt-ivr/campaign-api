@@ -1,6 +1,7 @@
 import { handleCampaignInfo, handleSolicitorsList, handleDonationInfo } from './campaign.js';
 import { handleWebhookRequest } from './webhook.js';
 import { handleRegister, handleLogin, handleDashboard, handleUpdateTarget } from './solicitor.js';
+import { handleYemotStatus, handleYemotDonate } from './yemot.js'; // הייבוא החדש של ימות המשיח
 
 function corsResponse(response) {
     const newHeaders = new Headers(response.headers);
@@ -48,6 +49,13 @@ export default {
             }
             else if (path === '/campaign/api/solicitor/update' && request.method === 'POST') {
                 response = await handleUpdateTarget(request, env);
+            }
+            // --- נתיבים חדשים עבור ימות המשיח ---
+            else if (path === '/campaign/api/yemot/status' && request.method === 'GET') {
+                response = await handleYemotStatus(request, env);
+            }
+            else if (path === '/campaign/api/yemot/donate' && request.method === 'GET') {
+                response = await handleYemotDonate(request, env);
             }
             else {
                 response = new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
