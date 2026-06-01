@@ -2,72 +2,99 @@
 
 // 1. שמיעת מצב הקמפיין
 export async function handleYemotStatus(request, env) {
-    try {
-        return new Response("id_list_message=t-המערכת בבניה ותעודכן בקרוב&", {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-        });
-    } catch (error) {
-        return new Response("id_list_message=t-שגיאת מערכת&", { 
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' } 
-        });
-    }
+    return new Response("id_list_message=t-המערכת בבניה ותעודכן בקרוב&", {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
 }
 
-// 2. קבלת נתוני תרומה וסליקה
+// 2. קבלת נתוני תרומה וסליקה בשיטת שחזור State (כמו בפרויקט שלך)
 export async function handleYemotDonate(request, env) {
-    try {
-        const url = new URL(request.url);
-        
-        // פרמטרים שאנחנו אוספים מהבקשה של ימות המשיח
-        const phone = url.searchParams.get('ApiPhone') || '';
-        const solicitorId = url.searchParams.get('id'); 
-        const amountRaw = url.searchParams.get('amount'); 
-        const ccCode = url.searchParams.get('CreditCard_CODE');
+    const url = new URL(request.url);
+    const params = url.searchParams;
 
-        // שלב 3: חזרה מהסליקה של חברת האשראי
-        if (ccCode !== null) {
-            if (ccCode === '0' || ccCode === '000') {
-                return new Response("id_list_message=t-תרומתך התקבלה בהצלחה תזכו למצוות&", {
-                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-                });
-            } else {
-                return new Response(`id_list_message=t-שגיאה בביצוע התשלום קוד שגיאה ${ccCode}&`, {
-                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-                });
-            }
-        }
-
-        // שלב 1: בקשת מזהה מתרים (אם לא התקבל)
-        if (!solicitorId) {
-            return new Response("read=t-אנא הקישו קוד מתרים וסולמית=id,10,1,7,3&", {
+    // --- 1. בדיקה אם חזרנו מסליקה ---
+    const ccCode = params.get('CreditCard_CODE');
+    if (ccCode !== null) {
+        if (ccCode === '0' || ccCode === '000') {
+            return new Response("id_list_message=t-תרומתך התקבלה בהצלחה תזכו למצוות&", {
+                headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            });
+        } else {
+            return new Response(`id_list_message=t-שגיאה בביצוע התשלום קוד שגיאה ${ccCode}&`, {
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' }
             });
         }
+    }
 
-        // שלב 2: בקשת סכום (אם לא התקבל)
-        if (!amountRaw) {
-            return new Response("read=t-אנא הקישו את הסכום לתרומה וסולמית לאגורות הקישו כוכבית=amount,10,1,7,3&", {
-                headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-            });
-        }
+    // --- 2. חישוב המצב הנוכחי (Replay) ---
+    const state = calculateState(params);
+    const nextVar = `val_${state.nextIndex}`;
+    
+    let responseText = '';
 
-        // שלב 4: יש את כל הנתונים - מוציאים לסליקה
-        // המרת הכוכבית לנקודה עשרונית
-        const billingSum = amountRaw.replace('*', '.');
+    // --- 3. יציאה לתשלום ---
+    if (state.stage === 'CHECKOUT') {
+        const billingSum = state.amount.replace('*', '.');
         const terminalNum = '7016822';
-        const maxTashlumim = '12';
-        const currency = '1';
-
-        // הפקודה לביצוע חיוב אשראי - בדיוק בפורמט שביקשת
-        const ccString = `credit_card=nedarim_plus,${billingSum},${terminalNum},${maxTashlumim},${currency},,,,all,,NameStt,NoAsk,,GoBack&`;
-
-        return new Response(ccString, {
+        
+        responseText = `credit_card=nedarim_plus,${billingSum},${terminalNum},12,1,,,,all,,NameStt,NoAsk,,GoBack&`;
+        
+        return new Response(responseText, {
             headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         });
-
-    } catch (error) {
-        return new Response("id_list_message=t-שגיאת מערכת בשרת&", { 
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' } 
-        });
     }
+
+    // --- 4. יצירת התשובה לימות המשיח לפי השלב ---
+    if (state.stage === 'GET_ID') {
+        responseText = `read=t-אנא הקישו קוד מתרים וסולמית=${nextVar},10,1,7,3`;
+    } 
+    else if (state.stage === 'GET_AMOUNT') {
+        responseText = `read=t-אנא הקישו את הסכום לתרומה וסולמית לאגורות הקישו כוכבית=${nextVar},10,1,7,3`;
+    }
+
+    return new Response(responseText, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+}
+
+// --- פונקציות עזר ---
+
+function calculateState(params) {
+    let state = {
+        solicitorId: params.get('id') || null, // אם מגיע 'id' קבוע מהגדרות השלוחה הוא ייכנס לפה
+        amount: null,
+        stage: 'GET_ID',
+        nextIndex: 1
+    };
+
+    // אם הוגדר ID קבוע, נדלג ישר לשלב בקשת הסכום
+    if (state.solicitorId) {
+        state.stage = 'GET_AMOUNT';
+    }
+
+    let i = 1;
+    while (true) {
+        const valName = `val_${i}`;
+        const input = params.get(valName);
+
+        // אם אין יותר הקשות, עוצרים את הלולאה
+        if (input === null || input === undefined) {
+            state.nextIndex = i;
+            break;
+        }
+
+        // שחזור השלבים לפי ההקשות שכבר נאספו
+        if (state.stage === 'GET_ID') {
+            state.solicitorId = input;
+            state.stage = 'GET_AMOUNT';
+        } 
+        else if (state.stage === 'GET_AMOUNT') {
+            state.amount = input;
+            state.stage = 'CHECKOUT';
+        }
+        
+        i++;
+    }
+    
+    return state;
 }
