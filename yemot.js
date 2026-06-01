@@ -1,13 +1,15 @@
 // yemot.js
 
+// 1. שמיעת מצב הקמפיין (דוגמה)
 export async function handleYemotStatus(request, env) {
     try {
-        const yemotResponseString = `id_list_message=t-המערכת_בבניה&go_to_folder=/`; 
+        // מחזיר הודעת טקסט להקראה, ללא ניתוב לשלוחה אחרת
+        const yemotResponseString = `id_list_message=t-המערכת_בבניה_ותעודכן_בקרוב`; 
         return new Response(yemotResponseString, {
             headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         });
     } catch (error) {
-        return new Response(`id_list_message=t-שגיאה&go_to_folder=/`, { 
+        return new Response(`id_list_message=t-שגיאת_מערכת`, { 
             headers: { 'Content-Type': 'text/plain; charset=utf-8' } 
         });
     }
@@ -18,55 +20,49 @@ export async function handleYemotDonate(request, env) {
     try {
         const url = new URL(request.url);
         
-        // פרמטרים בסיסיים
+        // פרמטרים שאנחנו אוספים מהבקשה של ימות המשיח
         const phone = url.searchParams.get('ApiPhone') || '';
-        
-        // פרמטרים שאנחנו אוספים בתהליך
-        const solicitorId = url.searchParams.get('id'); // מזהה מתרים
-        const amountRaw = url.searchParams.get('amount'); // סכום
-        
-        // קוד תשובה מחברת האשראי (מגיע רק אחרי ביצוע הסליקה)
+        const solicitorId = url.searchParams.get('id'); 
+        const amountRaw = url.searchParams.get('amount'); 
         const ccCode = url.searchParams.get('CreditCard_CODE');
 
-        // שלב 3: בדיקה אם אנחנו אחרי חזרה מסליקה
+        // שלב 3: חזרה מהסליקה של חברת האשראי
         if (ccCode !== null) {
-            // בימות המשיח, 0 לרוב מסמל הצלחה. אפשר להוסיף לוגיקה לשמירה ב-DB כאן.
             if (ccCode === '0' || ccCode === '000') {
-                return new Response("id_list_message=t-תרומתך_התקבלה_בהצלחה&go_to_folder=/", {
+                return new Response("id_list_message=t-תרומתך_התקבלה_בהצלחה_תזכו_למצוות", {
                     headers: { 'Content-Type': 'text/plain; charset=utf-8' }
                 });
             } else {
-                return new Response(`id_list_message=t-שגיאה_בביצוע_התשלום_קוד_שגיאה_${ccCode}&go_to_folder=/`, {
+                return new Response(`id_list_message=t-שגיאה_בביצוע_התשלום_קוד_שגיאה_${ccCode}`, {
                     headers: { 'Content-Type': 'text/plain; charset=utf-8' }
                 });
             }
         }
 
-        // שלב 1: אם אין מזהה מתרים - נבקש אותו
+        // שלב 1: בקשת מזהה מתרים (אם לא התקבל)
         if (!solicitorId) {
-            // read=t-[var_name]=[file_to_play],MaxDigits,MinDigits,WaitSeconds,Retries
-            // השמעת קובץ enter_id (נא להקיש מספר מתרים)
-            return new Response("read=t-id=enter_id,10,1,7,3", {
+            // הקראת הטקסט המבוקש והמתנה להקשה
+            return new Response("read=t-אנא_הקישו_קוד_מתרים_וסולמית=id,10,1,7,3", {
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' }
             });
         }
 
-        // שלב 2: אם אין סכום - נבקש אותו
+        // שלב 2: בקשת סכום (אם לא התקבל)
         if (!amountRaw) {
-            // השמעת קובץ enter_amount (נא להקיש סכום לתרומה, לאגורות הקישו כוכבית)
-            return new Response("read=t-amount=enter_amount,10,1,7,3", {
+            // הקראת הטקסט המבוקש והמתנה להקשה
+            return new Response("read=t-אנא_הקישו_את_הסכום_לתרומה_וסולמית_לאגורות_הקישו_כוכבית=amount,10,1,7,3", {
                 headers: { 'Content-Type': 'text/plain; charset=utf-8' }
             });
         }
 
-        // שלב 4: יש לנו את כל הנתונים, מוציאים לסליקה בנדרים פלוס
-        // המרת כוכבית מימות המשיח לנקודה עשרונית עבור נדרים פלוס (למשל: 55*6 הופך ל 55.6)
+        // שלב 4: יש את כל הנתונים - מוציאים לסליקה
+        // המרת הכוכבית לנקודה עשרונית
         const billingSum = amountRaw.replace('*', '.');
         const terminalNum = '7016822';
-        const maxTashlumim = '12'; // מקסימום תשלומים
-        const currency = '1'; // 1 = שקלים
+        const maxTashlumim = '12';
+        const currency = '1';
 
-        // המחרוזת המדויקת שביקשת
+        // הפקודה לביצוע חיוב אשראי - בדיוק בפורמט שביקשת
         const ccString = `credit_card=nedarim_plus,${billingSum},${terminalNum},${maxTashlumim},${currency},,,,all,,NameStt,NoAsk,,GoBack`;
 
         return new Response(ccString, {
@@ -74,7 +70,7 @@ export async function handleYemotDonate(request, env) {
         });
 
     } catch (error) {
-        return new Response("id_list_message=t-שגיאת_מערכת&go_to_folder=/", { 
+        return new Response("id_list_message=t-שגיאת_מערכת_בשרת", { 
             headers: { 'Content-Type': 'text/plain; charset=utf-8' } 
         });
     }
