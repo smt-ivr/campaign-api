@@ -46,10 +46,10 @@ export async function handleYemotDonate(request, env) {
 
     // --- 4. יצירת התשובה לימות המשיח לפי השלב ---
     if (state.stage === 'GET_ID') {
-        responseText = `read=t-אנא הקישו קוד מתרים וסולמית=${nextVar},10,1,7,3`;
+        responseText = `read=t-אנא הקישו קוד מתרים וסולמית=${nextVar},,`;
     } 
     else if (state.stage === 'GET_AMOUNT') {
-        responseText = `read=t-אנא הקישו את הסכום לתרומה וסולמית לאגורות הקישו כוכבית=${nextVar},10,1,7,3`;
+        responseText = `read=t-אנא הקישו את הסכום לתרומה וסולמית לאגורות הקישו כוכבית=${nextVar},,`;
     }
 
     return new Response(responseText, {
