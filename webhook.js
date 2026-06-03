@@ -1,4 +1,5 @@
-import { insertDonation, isTransactionExists, insertWebhookError } from './db.js';
+// webhook.js
+import { insertDonation, isTransactionExists, insertWebhookError, getCampaignSettings } from './db.js';
 import { getIsraelTime } from './utils.js';
 
 export async function handleWebhookRequest(request, env) {
@@ -29,12 +30,15 @@ export async function handleWebhookRequest(request, env) {
         
         console.log("נתוני העסקה שהתקבלו:", JSON.stringify(bodyData));
         const israelTime = getIsraelTime();
+        
+        // שמירת כל הנתונים שנשלחו (כדי שנוכל לשמור בבסיס הנתונים כפי שביקשת)
+        const fullPayload = JSON.stringify(bodyData);
 
         // בדיקה האם נדרים פלוס מדווחים על עסקה שגויה (Status = Error)
         if (bodyData.Status === 'Error') {
             console.log("התקבל וובהוק על עסקה שנכשלה. שומר בטבלת שגיאות...");
             const errorMsg = bodyData.Message || 'שגיאה כללית מנדרים פלוס';
-            await insertWebhookError(env, JSON.stringify(bodyData), errorMsg, israelTime);
+            await insertWebhookError(env, fullPayload, errorMsg, israelTime);
             
             // מחזירים 200 כדי שנדרים פלוס יראו שההודעה נקלטה
             return new Response(JSON.stringify({ status: 'success', message: 'שגיאה נקלטה ונרשמה בהצלחה' }), {
@@ -43,17 +47,22 @@ export async function handleWebhookRequest(request, env) {
             });
         }
 
-        const txId = bodyData.TransactionId;
+        // === זיהוי סוג העסקה ושליפת הנתונים ===
+        const isKeva = bodyData.KevaId ? 1 : 0; // אם יש KevaId זו הוראת קבע
+        // מזהה חד-חד ערכי (לעסקה רגילה זה TransactionId, להוראת קבע זה KevaId)
+        const txId = bodyData.TransactionId || bodyData.KevaId; 
+        
         const amount = parseFloat(bodyData.Amount);
         const donorName = bodyData.ClientName || 'תורם אנונימי';
         const comment = bodyData.Comments || ''; 
         const solicitorId = parseInt(bodyData.Param1) || null;
         const currency = bodyData.Currency || '1'; 
+        const webhookGroupe = bodyData.Groupe || '';
 
-        // בדיקת תקינות נתונים במקרה של עסקה רגילה
+        // בדיקת תקינות נתונים במקרה של עסקה רגילה או הו"ק
         if (!txId || isNaN(amount)) {
-            console.log("חסרים שדות חובה בוובהוק רגיל. שומר בטבלת שגיאות...");
-            await insertWebhookError(env, JSON.stringify(bodyData), 'חסרים שדות חובה (TransactionId או Amount)', israelTime);
+            console.log("חסרים שדות חובה בוובהוק. שומר בטבלת שגיאות...");
+            await insertWebhookError(env, fullPayload, 'חסרים שדות חובה (TransactionId/KevaId או Amount)', israelTime);
             
             return new Response(JSON.stringify({ status: 'success', message: 'וובהוק לא תקין נקלט ונרשם' }), {
                 status: 200,
@@ -61,9 +70,25 @@ export async function handleWebhookRequest(request, env) {
             });
         }
 
-        const exists = await isTransactionExists(env, txId);
+        // === בדיקת תאימות של הקטגוריה (Groupe) ===
+        const settings = await getCampaignSettings(env);
+        const campaignGroupe = settings.groupe_name || '';
+
+        // אם מוגדרת קטגוריה לקמפיין במסד הנתונים, והעסקה לא שייכת אליה
+        if (campaignGroupe && webhookGroupe !== campaignGroupe) {
+            console.log(`עסקה לא שייכת לקמפיין. קטגוריה התקבלה: ${webhookGroupe}, נדרשת: ${campaignGroupe}`);
+            await insertWebhookError(env, fullPayload, `התקבלה עסקה שלא שייכת לקבוצת הקמפיין (${webhookGroupe})`, israelTime);
+            
+            return new Response(JSON.stringify({ status: 'success', message: 'העסקה נשמרה בשגיאות עקב אי-תאימות בקבוצה' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // === מניעת כפילויות ===
+        const exists = await isTransactionExists(env, String(txId));
         if (exists) {
-            console.log("עסקה כבר קיימת, מתעלם:", txId);
+            console.log("עסקה/הוראת קבע כבר קיימת, מתעלם:", txId);
             return new Response(JSON.stringify({ status: 'success', message: 'העסקה כבר קיימת במערכת' }), { 
                 status: 200, 
                 headers: { 'Content-Type': 'application/json' } 
@@ -72,9 +97,10 @@ export async function handleWebhookRequest(request, env) {
 
         console.log("מנסה לשמור למסד הנתונים...");
         
-        await insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, israelTime);
+        // שמירת התרומה כולל כל הפרטים החדשים
+        await insertDonation(env, String(txId), solicitorId, donorName, amount, currency, comment, israelTime, webhookGroupe, isKeva, fullPayload);
         
-        console.log("העסקה נשמרה בהצלחה במסד הנתונים!");
+        console.log("העסקה/הוראת קבע נשמרה בהצלחה במסד הנתונים!");
 
         return new Response(JSON.stringify({ status: 'success', message: 'התרומה נרשמה בהצלחה' }), {
             status: 200,
