@@ -1,3 +1,5 @@
+// db.js
+
 // שליפת הגדרות
 export async function getCampaignSettings(env) {
     const { results } = await env.DB.prepare("SELECT key, value FROM settings").all();
@@ -45,11 +47,12 @@ export async function isTransactionExists(env, txId) {
     return result !== null;
 }
 
-export async function insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, createdAt) {
+// === עודכן: נוספו השדות groupe, is_keva, full_payload ===
+export async function insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, createdAt, groupe = '', isKeva = 0, fullPayload = '') {
     await env.DB.prepare(`
-        INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, currency, comment, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(txId, solicitorId, donorName, amount, currency, comment, createdAt).run();
+        INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, currency, comment, created_at, groupe, is_keva, full_payload) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(txId, solicitorId, donorName, amount, currency, comment, createdAt, groupe, isKeva, fullPayload).run();
 }
 
 // --- פונקציות מתרימים ---
@@ -90,7 +93,7 @@ export async function updateSolicitorTarget(env, id, newTarget) {
 
 // --- פונקציות שגיאות ---
 
-// הוספת שגיאת וובהוק לטבלה החדשה
+// הוספת שגיאת וובהוק לטבלה
 export async function insertWebhookError(env, payload, errorMessage, createdAt) {
     await env.DB.prepare(`
         INSERT INTO webhook_errors (payload, error_message, created_at) 
