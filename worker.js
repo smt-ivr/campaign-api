@@ -26,7 +26,7 @@ export default {
 
             // נתיבים חדשים לקמפיין ולתרומות
             if (path === '/campaign/api/info' && request.method === 'GET') {
-                response = await handleCampaignInfo(env);
+                response = await handleCampaignInfo(request, env); // כאן עודכן להעביר את request
             }
             else if (path === '/campaign/api/solicitors' && request.method === 'GET') {
                 response = await handleSolicitorsList(env);
