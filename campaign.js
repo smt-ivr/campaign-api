@@ -1,4 +1,5 @@
 import { getCampaignSettings, getTotalDonations, getSolicitors } from './db.js';
+import { getIsraelTime } from './utils.js'; // ייבוא פונקציית הזמן הישראלי הקיימת שלך
 
 async function getOfficialBoiRate() {
     let usdRate = 2.81; 
@@ -17,8 +18,27 @@ async function getOfficialBoiRate() {
     return usdRate;
 }
 
-export async function handleCampaignInfo(env) {
+export async function handleCampaignInfo(request, env) { // עודכן לקבלת request
     try {
+        // --- קטע קוד: חילוץ נתוני גולש ושמירה למסד הנתונים ---
+        try {
+            const ip = request.headers.get('cf-connecting-ip') || 'Unknown';
+            const country = request.cf?.country || 'Unknown'; // קוד מדינה (למשל IL)
+            const city = request.cf?.city || 'Unknown';       // שם עיר (למשל Jerusalem)
+            const userAgent = request.headers.get('user-agent') || 'Unknown'; // דפדפן ומערכת הפעלה
+            const israelTime = getIsraelTime(); // הזמן הנוכחי בישראל מתוך utils.js
+
+            // ביצוע הרישום בטבלה החדשה באופן אסינכרוני
+            await env.DB.prepare(
+                "INSERT INTO api_visits (ip, country, city, user_agent, created_at) VALUES (?, ?, ?, ?, ?)"
+            ).bind(ip, country, city, userAgent, israelTime).run();
+            
+        } catch (logError) {
+            // תפיסת שגיאה פנימית כדי שאם הרישום ייכשל מסיבה כלשהי, ה-API לא יינעל וימשיך להחזיר מידע כרגיל
+            console.error("שגיאה ברישום נתוני המעקב ל-DB:", logError.message);
+        }
+        // --------------------------------------------------------
+
         const settings = await getCampaignSettings(env);
         const totals = await getTotalDonations(env); 
         const usdRate = await getOfficialBoiRate();
@@ -65,7 +85,7 @@ export async function handleSolicitorsList(env) {
                 target_amount: sol.target_amount,
                 raised_ils: sol.raised_ils, 
                 raised_usd: sol.raised_usd, 
-                raised: combinedRaised, // בוטל העיגול! נשמר דיוק מלא
+                raised: combinedRaised, // דיוק מלא
                 percentage: parseFloat(percentage) // שליחת האחוז ללקוח
             };
         });
