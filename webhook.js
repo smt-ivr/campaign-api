@@ -6,9 +6,23 @@ export async function handleWebhookRequest(request, env) {
     try {
         const clientIP = request.headers.get('CF-Connecting-IP');
         
-        // חסימת IP לא מורשה עם הודעת שגיאה מפורטת במקום לקרוס
-        if (clientIP !== '18.194.219.73') {
-            console.warn(`נדחתה גישה מוובהוק בשל IP לא מורשה: ${clientIP}`);
+        // שליפת ההגדרות מהמסד כולל הכתובות המורשות לוובהוק
+        const settings = await getCampaignSettings(env);
+        const allowedIpsString = settings.webhook_allowed_ips;
+        
+        let isAllowed = false;
+        
+        // בדיקה האם קיימת הגדרה למשיכת הכתובות מהמסד, והאם ה-IP נוכחי מורשה
+        if (allowedIpsString) {
+            const allowedIps = allowedIpsString.split(',').map(ip => ip.trim());
+            if (allowedIps.includes(clientIP)) {
+                isAllowed = true;
+            }
+        }
+        
+        // חסימת IP לא מורשה עם הודעת שגיאה מפורטת במקום לקרוס (ללא ברירת מחדל בקוד)
+        if (!isAllowed) {
+            console.warn(`נדחתה גישה מוובהוק בשל IP לא מורשה או שחסרה הגדרה במסד הנתונים: ${clientIP}`);
             return new Response(JSON.stringify({ 
                 status: 'error', 
                 message: `גישה נדחתה: כתובת ה-IP שלך (${clientIP}) אינה מורשית לגשת לנקודה זו.` 
@@ -71,7 +85,6 @@ export async function handleWebhookRequest(request, env) {
         }
 
         // === בדיקת תאימות של הקטגוריה (Groupe) ===
-        const settings = await getCampaignSettings(env);
         const campaignGroupe = settings.groupe_name || '';
 
         // אם מוגדרת קטגוריה לקמפיין במסד הנתונים, והעסקה לא שייכת אליה
