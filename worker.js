@@ -1,8 +1,9 @@
 import { handleCampaignInfo, handleSolicitorsList, handleDonationInfo } from './campaign.js';
 import { handleWebhookRequest } from './webhook.js';
 import { handleRegister, handleLogin, handleDashboard, handleUpdateTarget } from './solicitor.js';
-import { handleYemotStatus, handleYemotDonate } from './yemot.js'; // הייבוא החדש של ימות המשיח
+import { handleYemotStatus, handleYemotDonate } from './yemot.js'; 
 import { handlePublicDonations } from './public-donations.js';
+import { handleAdminDashboard, handleAdminData } from './admin.js'; // ייבוא פאנל ניהול
 
 function corsResponse(response) {
     const newHeaders = new Headers(response.headers);
@@ -24,9 +25,8 @@ export default {
         try {
             let response;
 
-            // נתיבים חדשים לקמפיין ולתרומות
             if (path === '/campaign/api/info' && request.method === 'GET') {
-                response = await handleCampaignInfo(request, env); // כאן עודכן להעביר את request
+                response = await handleCampaignInfo(request, env); 
             }
             else if (path === '/campaign/api/solicitors' && request.method === 'GET') {
                 response = await handleSolicitorsList(env);
@@ -34,11 +34,9 @@ export default {
             else if (path === '/campaign/api/donation-info' && request.method === 'GET') {
                 response = await handleDonationInfo(env);
             }
-            // נתיב וובהוק נשאר כרגיל
             else if (path === '/campaign/api/webhook' && request.method === 'POST') {
                 response = await handleWebhookRequest(request, env);
             }
-            // נתיבי מתרימים
             else if (path === '/campaign/api/solicitor/register' && request.method === 'POST') {
                 response = await handleRegister(request, env);
             }
@@ -51,16 +49,21 @@ export default {
             else if (path === '/campaign/api/solicitor/update' && request.method === 'POST') {
                 response = await handleUpdateTarget(request, env);
             }
-            // --- נתיבים חדשים עבור ימות המשיח ---
             else if (path === '/campaign/api/yemot/status' && request.method === 'GET') {
                 response = await handleYemotStatus(request, env);
             }
             else if (path === '/campaign/api/yemot/donate' && request.method === 'GET') {
                 response = await handleYemotDonate(request, env);
             }
-            // --- נתיב תרומות פומביות ---
             else if (path === '/campaign/api/donations-public' && request.method === 'GET') {
                 response = await handlePublicDonations(request, env);
+            }
+            // --- נתיבים חדשים עבור פאנל הניהול ---
+            else if (path === '/campaign/api/admin' && request.method === 'GET') {
+                response = await handleAdminDashboard(request, env);
+            }
+            else if (path === '/campaign/api/admin/data' && request.method === 'POST') {
+                response = await handleAdminData(request, env);
             }
             else {
                 response = new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
