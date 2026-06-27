@@ -15,6 +15,7 @@ export async function getTotalDonations(env) {
     
     if (results) {
         for (let row of results) {
+            // קוד 2 של נדרים פלוס = דולר
             if (row.currency === '2' || row.currency === 'USD') {
                 total_usd += row.amount;
             } else {
@@ -25,6 +26,7 @@ export async function getTotalDonations(env) {
     return { total_ils, total_usd };
 }
 
+// חלוקת המטבעות לשקלים ולדולרים ישירות למתרימים
 export async function getSolicitors(env) {
     const { results } = await env.DB.prepare(`
         SELECT 
@@ -45,12 +47,15 @@ export async function isTransactionExists(env, txId) {
     return result !== null;
 }
 
+// === עודכן: נוספו השדות groupe, is_keva, full_payload ===
 export async function insertDonation(env, txId, solicitorId, donorName, amount, currency, comment, createdAt, groupe = '', isKeva = 0, fullPayload = '') {
     await env.DB.prepare(`
         INSERT INTO donations (nedarim_tx_id, solicitor_id, donor_name, amount, currency, comment, created_at, groupe, is_keva, full_payload) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(txId, solicitorId, donorName, amount, currency, comment, createdAt, groupe, isKeva, fullPayload).run();
 }
+
+// --- פונקציות מתרימים ---
 
 export async function checkSolicitorExists(env, email, phone) {
     const query = "SELECT id FROM solicitors WHERE email = ? OR (phone = ? AND phone != '')";
@@ -86,33 +91,12 @@ export async function updateSolicitorTarget(env, id, newTarget) {
     await env.DB.prepare("UPDATE solicitors SET target_amount = ? WHERE id = ?").bind(newTarget, id).run();
 }
 
+// --- פונקציות שגיאות ---
+
+// הוספת שגיאת וובהוק לטבלה
 export async function insertWebhookError(env, payload, errorMessage, createdAt) {
     await env.DB.prepare(`
         INSERT INTO webhook_errors (payload, error_message, created_at) 
         VALUES (?, ?, ?)
     `).bind(payload, errorMessage, createdAt).run();
-}
-
-// === פונקציות פאנל ניהול חדשות ===
-export async function getAdminVisitsData(env, password) {
-    const settings = await getCampaignSettings(env);
-    const adminPass = settings.admin_password || '123456'; 
-
-    if (password !== adminPass) {
-        throw new Error('Unauthorized');
-    }
-
-    const totalRes = await env.DB.prepare("SELECT COUNT(*) as count FROM api_visits").first();
-    const ilRes = await env.DB.prepare("SELECT COUNT(*) as count FROM api_visits WHERE country = 'IL'").first();
-    const otherRes = await env.DB.prepare("SELECT COUNT(*) as count FROM api_visits WHERE country != 'IL'").first();
-    
-    // מביא את ה-500 כניסות האחרונות לביצועים מהירים
-    const { results } = await env.DB.prepare("SELECT * FROM api_visits ORDER BY created_at DESC LIMIT 500").all();
-
-    return {
-        total: totalRes.count,
-        israel: ilRes.count,
-        other: otherRes.count,
-        visits: results || []
-    };
 }
