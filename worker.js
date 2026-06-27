@@ -1,9 +1,9 @@
 import { handleCampaignInfo, handleSolicitorsList, handleDonationInfo } from './campaign.js';
 import { handleWebhookRequest } from './webhook.js';
 import { handleRegister, handleLogin, handleDashboard, handleUpdateTarget } from './solicitor.js';
-import { handleYemotStatus, handleYemotDonate } from './yemot.js'; 
+import { handleYemotStatus, handleYemotDonate } from './yemot.js';
 import { handlePublicDonations } from './public-donations.js';
-import { handleAdminDashboard, handleAdminData } from './admin.js'; // ייבוא פאנל ניהול
+import { handleAdminVisits } from './admin.js'; // הייבוא החדש
 
 function corsResponse(response) {
     const newHeaders = new Headers(response.headers);
@@ -58,12 +58,9 @@ export default {
             else if (path === '/campaign/api/donations-public' && request.method === 'GET') {
                 response = await handlePublicDonations(request, env);
             }
-            // --- נתיבים חדשים עבור פאנל הניהול ---
-            else if (path === '/campaign/api/admin' && request.method === 'GET') {
-                response = await handleAdminDashboard(request, env);
-            }
-            else if (path === '/campaign/api/admin/data' && request.method === 'POST') {
-                response = await handleAdminData(request, env);
+            // --- נתיב אדמין למעקב כניסות ---
+            else if (path === '/campaign/api/admin/visits' && request.method === 'GET') {
+                response = await handleAdminVisits(request, env);
             }
             else {
                 response = new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
@@ -72,19 +69,10 @@ export default {
             return corsResponse(response);
 
         } catch (error) {
-            console.error("=== קריסת שרת נתפסה בראוטר הראשי ===");
-            console.error("נתיב שניסה לגשת:", path);
-            console.error("הודעת שגיאה:", error.message);
-            console.error("פירוט (Stack):", error.stack);
-
+            console.error("=== קריסת שרת נתפסה בראוטר ===");
             return corsResponse(new Response(JSON.stringify({ 
-                status: 'error', 
-                message: 'שגיאת שרת פנימית',
-                details: error.message
-            }), { 
-                status: 500,
-                headers: { 'Content-Type': 'application/json' } 
-            }));
+                status: 'error', message: 'שגיאת שרת פנימית', details: error.message
+            }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
         }
     }
 };
